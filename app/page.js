@@ -1,25 +1,25 @@
 "use client";
 import { useState, useEffect } from "react";
-import { FileText, Plus, Trash2, Lock, Download, AlertTriangle, ShieldCheck, ChevronRight, MapPin } from "lucide-react";
+import { FileText, Plus, Trash2, Lock, Download, AlertTriangle, ShieldCheck, ChevronRight, MapPin, Loader2 } from "lucide-react";
 
 export default function DepositShield() {
-  const [step, setStep] = useState(1); // 1 = Form, 2 = Paywall Preview
+  const [step, setStep] = useState(1); 
   
   const [tenantName, setTenantName] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
   
-  // Address Autocomplete States
   const [propertyAddress, setPropertyAddress] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   
-  // Dynamic list of damages/deductions
   const [deductions, setDeductions] = useState([
     { id: 1, description: "", amount: "" }
   ]);
 
-  // --- ADDRESS AUTOCOMPLETE LOGIC ---
+  // NEW: State for loading the Square checkout
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   useEffect(() => {
     if (propertyAddress.length < 4 || !showSuggestions) {
       setSuggestions([]);
@@ -29,7 +29,6 @@ export default function DepositShield() {
     const delayDebounceFn = setTimeout(async () => {
       setIsSearching(true);
       try {
-        // Using OpenStreetMap's free global address API (No API Key Required!)
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${propertyAddress}&limit=5`);
         const data = await res.json();
         setSuggestions(data);
@@ -37,16 +36,15 @@ export default function DepositShield() {
         console.error("Error fetching address:", error);
       }
       setIsSearching(false);
-    }, 500); // Waits half a second after they stop typing to search
+    }, 500); 
 
     return () => clearTimeout(delayDebounceFn);
   }, [propertyAddress, showSuggestions]);
 
   const handleSelectAddress = (address) => {
     setPropertyAddress(address);
-    setShowSuggestions(false); // Hide the dropdown once selected
+    setShowSuggestions(false); 
   };
-  // ----------------------------------
 
   const addDeduction = () => {
     setDeductions([...deductions, { id: Date.now(), description: "", amount: "" }]);
@@ -60,7 +58,6 @@ export default function DepositShield() {
     setDeductions(deductions.map(d => d.id === id ? { ...d, [field]: value } : d));
   };
 
-  // Math Calculations
   const totalDeductions = deductions.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
   const refundAmount = (parseFloat(depositAmount) || 0) - totalDeductions;
 
@@ -70,10 +67,28 @@ export default function DepositShield() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  // NEW: Calls the backend to get the Square link
+  const handleCheckout = async () => {
+    setIsCheckingOut(true);
+    try {
+      const res = await fetch("/api/checkout", { method: "POST" });
+      const data = await res.json();
+      
+      if (data.url) {
+        window.location.href = data.url; // Sends user to Square Sandbox
+      } else {
+        alert("Checkout failed to load. Please try again.");
+        setIsCheckingOut(false);
+      }
+    } catch (error) {
+      alert("System error. Please try again.");
+      setIsCheckingOut(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       
-      {/* HEADER */}
       <nav className="bg-slate-900 text-white px-8 py-5 flex justify-between items-center shadow-lg">
         <div className="flex items-center space-x-2">
           <ShieldCheck className="w-8 h-8 text-blue-400" />
@@ -84,7 +99,6 @@ export default function DepositShield() {
 
       <main className="max-w-4xl mx-auto py-12 px-4">
         
-        {/* STEP 1: THE INTAKE FORM */}
         {step === 1 && (
           <div className="space-y-8">
             <div className="text-center max-w-2xl mx-auto mb-10">
@@ -94,7 +108,6 @@ export default function DepositShield() {
 
             <form onSubmit={handleGenerate} className="bg-white p-8 md:p-10 rounded-2xl shadow-xl border border-slate-200">
               
-              {/* Basic Info */}
               <div className="mb-10">
                 <h3 className="text-xl font-bold border-b pb-2 mb-6 flex items-center"><FileText className="w-5 h-5 mr-2 text-blue-600"/> Lease Details</h3>
                 <div className="grid md:grid-cols-2 gap-6">
@@ -107,7 +120,6 @@ export default function DepositShield() {
                     <input required type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="e.g., 1500" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none transition" />
                   </div>
                   
-                  {/* AUTOCOMPLETE ADDRESS FIELD */}
                   <div className="md:col-span-2 relative">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Property Address</label>
                     <div className="relative">
@@ -125,15 +137,10 @@ export default function DepositShield() {
                       />
                     </div>
                     
-                    {/* DROPDOWN SUGGESTIONS */}
                     {showSuggestions && suggestions.length > 0 && (
                       <ul className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl mt-1 shadow-2xl max-h-60 overflow-y-auto">
                         {suggestions.map((s, i) => (
-                          <li 
-                            key={i} 
-                            onClick={() => handleSelectAddress(s.display_name)}
-                            className="p-4 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-sm text-slate-700 transition"
-                          >
+                          <li key={i} onClick={() => handleSelectAddress(s.display_name)} className="p-4 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-sm text-slate-700 transition">
                             {s.display_name}
                           </li>
                         ))}
@@ -141,11 +148,9 @@ export default function DepositShield() {
                     )}
                     {isSearching && <p className="text-xs text-blue-500 mt-2 font-bold absolute">Looking up address...</p>}
                   </div>
-
                 </div>
               </div>
 
-              {/* Deductions Section */}
               <div className="mb-10">
                 <div className="flex justify-between items-end border-b pb-2 mb-6">
                   <h3 className="text-xl font-bold flex items-center"><AlertTriangle className="w-5 h-5 mr-2 text-orange-500"/> Itemized Deductions</h3>
@@ -169,7 +174,6 @@ export default function DepositShield() {
                 </div>
               </div>
 
-              {/* Live Math Summary */}
               <div className="bg-slate-900 text-white p-6 rounded-xl mb-8 flex flex-col md:flex-row justify-between items-center">
                 <div className="mb-4 md:mb-0 text-center md:text-left">
                   <p className="text-slate-400 text-sm font-medium">Total Deductions</p>
@@ -190,14 +194,12 @@ export default function DepositShield() {
           </div>
         )}
 
-        {/* STEP 2: THE PAYWALL (THE TRAP) */}
         {step === 2 && (
           <div className="relative">
             <button onClick={() => setStep(1)} className="text-slate-500 font-bold hover:text-slate-800 mb-6 flex items-center">← Edit Details</button>
             
             <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden relative">
               
-              {/* THE BLURRED DOCUMENT PREVIEW */}
               <div className="p-10 filter blur-[6px] select-none opacity-60">
                 <div className="border-b-2 border-slate-900 pb-6 mb-6">
                   <h1 className="text-3xl font-serif font-black uppercase">Notice of Security Deposit Deduction</h1>
@@ -228,7 +230,6 @@ export default function DepositShield() {
                 <p className="font-serif leading-relaxed text-slate-900">A check for the remaining balance has been issued. If you have any questions regarding these deductions, please reply in writing within 15 days.</p>
               </div>
 
-              {/* THE PAYWALL OVERLAY */}
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/40 backdrop-blur-sm p-6 text-center">
                 <div className="bg-white p-10 rounded-3xl shadow-2xl max-w-md w-full border border-slate-100 transform scale-105">
                   <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
@@ -237,11 +238,15 @@ export default function DepositShield() {
                   <h2 className="text-3xl font-extrabold text-slate-900 mb-4">Document Ready!</h2>
                   <p className="text-slate-600 mb-8">Your legal deduction letter has been formatted and the math has been verified. Unlock the high-resolution PDF now to print or email to your tenant.</p>
                   
-                  {/* FAKE STRIPE CHECKOUT BUTTON */}
-                  <button onClick={() => alert("This would redirect to your Square or Stripe payment link for $9.00!")} className="w-full bg-slate-900 hover:bg-black text-white font-black text-xl py-5 rounded-xl shadow-xl flex justify-center items-center transition hover:scale-105">
-                    <Download className="w-6 h-6 mr-2" /> Unlock PDF - $9.00
+                  {/* UPDATED: SQUARE CHECKOUT BUTTON */}
+                  <button onClick={handleCheckout} disabled={isCheckingOut} className="w-full bg-slate-900 hover:bg-black text-white font-black text-xl py-5 rounded-xl shadow-xl flex justify-center items-center transition hover:scale-105 disabled:opacity-70 disabled:hover:scale-100">
+                    {isCheckingOut ? (
+                      <><Loader2 className="w-6 h-6 mr-2 animate-spin" /> Securely Connecting...</>
+                    ) : (
+                      <><Download className="w-6 h-6 mr-2" /> Unlock PDF - $9.00</>
+                    )}
                   </button>
-                  <p className="text-xs text-slate-400 mt-4 font-medium flex items-center justify-center"><ShieldCheck className="w-4 h-4 mr-1"/> Secure checkout via Stripe</p>
+                  <p className="text-xs text-slate-400 mt-4 font-medium flex items-center justify-center"><ShieldCheck className="w-4 h-4 mr-1"/> Secure checkout via Square</p>
                 </div>
               </div>
 
