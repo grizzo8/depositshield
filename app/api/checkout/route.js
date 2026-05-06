@@ -1,9 +1,11 @@
-import { Client } from "square";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
   try {
-    // FIX: We removed the broken "Environment" import and just hardcoded "sandbox"
+    // FIX: Using require() completely bypasses the Next.js import bug!
+    const { Client } = require("square");
+
+    // Connect to Square Sandbox
     const client = new Client({
       environment: "sandbox", 
       accessToken: process.env.SQUARE_ACCESS_TOKEN,
