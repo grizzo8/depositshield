@@ -1,18 +1,52 @@
 "use client";
-import { useState } from "react";
-import { FileText, Plus, Trash2, Lock, Download, AlertTriangle, ShieldCheck, ChevronRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Plus, Trash2, Lock, Download, AlertTriangle, ShieldCheck, ChevronRight, MapPin } from "lucide-react";
 
 export default function DepositShield() {
   const [step, setStep] = useState(1); // 1 = Form, 2 = Paywall Preview
   
   const [tenantName, setTenantName] = useState("");
-  const [propertyAddress, setPropertyAddress] = useState("");
   const [depositAmount, setDepositAmount] = useState("");
+  
+  // Address Autocomplete States
+  const [propertyAddress, setPropertyAddress] = useState("");
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   
   // Dynamic list of damages/deductions
   const [deductions, setDeductions] = useState([
     { id: 1, description: "", amount: "" }
   ]);
+
+  // --- ADDRESS AUTOCOMPLETE LOGIC ---
+  useEffect(() => {
+    if (propertyAddress.length < 4 || !showSuggestions) {
+      setSuggestions([]);
+      return;
+    }
+    
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        // Using OpenStreetMap's free global address API (No API Key Required!)
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${propertyAddress}&limit=5`);
+        const data = await res.json();
+        setSuggestions(data);
+      } catch (error) {
+        console.error("Error fetching address:", error);
+      }
+      setIsSearching(false);
+    }, 500); // Waits half a second after they stop typing to search
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [propertyAddress, showSuggestions]);
+
+  const handleSelectAddress = (address) => {
+    setPropertyAddress(address);
+    setShowSuggestions(false); // Hide the dropdown once selected
+  };
+  // ----------------------------------
 
   const addDeduction = () => {
     setDeductions([...deductions, { id: Date.now(), description: "", amount: "" }]);
@@ -72,10 +106,42 @@ export default function DepositShield() {
                     <label className="block text-sm font-bold text-slate-700 mb-2">Original Deposit Amount ($)</label>
                     <input required type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="e.g., 1500" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none transition" />
                   </div>
-                  <div className="md:col-span-2">
+                  
+                  {/* AUTOCOMPLETE ADDRESS FIELD */}
+                  <div className="md:col-span-2 relative">
                     <label className="block text-sm font-bold text-slate-700 mb-2">Property Address</label>
-                    <input required type="text" value={propertyAddress} onChange={e => setPropertyAddress(e.target.value)} placeholder="e.g., 123 Main St, Apt 4B, Austin, TX 75001" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none transition" />
+                    <div className="relative">
+                      <MapPin className="absolute left-4 top-4 text-slate-400 w-5 h-5" />
+                      <input 
+                        required 
+                        type="text" 
+                        value={propertyAddress} 
+                        onChange={e => {
+                          setPropertyAddress(e.target.value);
+                          setShowSuggestions(true);
+                        }} 
+                        placeholder="Start typing the address..." 
+                        className="w-full p-4 pl-12 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none transition text-slate-900" 
+                      />
+                    </div>
+                    
+                    {/* DROPDOWN SUGGESTIONS */}
+                    {showSuggestions && suggestions.length > 0 && (
+                      <ul className="absolute z-20 w-full bg-white border border-slate-200 rounded-xl mt-1 shadow-2xl max-h-60 overflow-y-auto">
+                        {suggestions.map((s, i) => (
+                          <li 
+                            key={i} 
+                            onClick={() => handleSelectAddress(s.display_name)}
+                            className="p-4 hover:bg-blue-50 cursor-pointer border-b border-slate-100 last:border-b-0 text-sm text-slate-700 transition"
+                          >
+                            {s.display_name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {isSearching && <p className="text-xs text-blue-500 mt-2 font-bold absolute">Looking up address...</p>}
                   </div>
+
                 </div>
               </div>
 
@@ -90,10 +156,10 @@ export default function DepositShield() {
                   {deductions.map((item, index) => (
                     <div key={item.id} className="flex space-x-4 items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
                       <div className="flex-grow">
-                        <input required type="text" value={item.description} onChange={e => updateDeduction(item.id, "description", e.target.value)} placeholder="Damage description (e.g., Carpet cleaning)" className="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500" />
+                        <input required type="text" value={item.description} onChange={e => updateDeduction(item.id, "description", e.target.value)} placeholder="Damage description (e.g., Carpet cleaning)" className="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500 text-slate-900" />
                       </div>
                       <div className="w-32">
-                        <input required type="number" value={item.amount} onChange={e => updateDeduction(item.id, "amount", e.target.value)} placeholder="Cost ($)" className="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500" />
+                        <input required type="number" value={item.amount} onChange={e => updateDeduction(item.id, "amount", e.target.value)} placeholder="Cost ($)" className="w-full p-3 bg-white border border-slate-200 rounded-lg outline-none focus:border-blue-500 text-slate-900" />
                       </div>
                       {deductions.length > 1 && (
                         <button type="button" onClick={() => removeDeduction(item.id)} className="p-3 text-red-400 hover:text-red-600 transition"><Trash2 className="w-5 h-5"/></button>
@@ -137,11 +203,11 @@ export default function DepositShield() {
                   <h1 className="text-3xl font-serif font-black uppercase">Notice of Security Deposit Deduction</h1>
                   <p className="text-slate-600 mt-2">Date: {new Date().toLocaleDateString()}</p>
                 </div>
-                <p className="mb-6 font-serif"><strong>To:</strong> {tenantName || "Tenant Name"}</p>
-                <p className="mb-6 font-serif"><strong>Regarding Property:</strong> {propertyAddress || "Property Address"}</p>
-                <p className="mb-6 font-serif leading-relaxed">This letter serves as official notice regarding your security deposit in the amount of <strong>${parseFloat(depositAmount || 0).toFixed(2)}</strong>. Following your move-out inspection, we have identified damages that exceed standard wear and tear. As per state law, the following deductions have been made:</p>
+                <p className="mb-6 font-serif text-slate-900"><strong>To:</strong> {tenantName || "Tenant Name"}</p>
+                <p className="mb-6 font-serif text-slate-900"><strong>Regarding Property:</strong> {propertyAddress || "Property Address"}</p>
+                <p className="mb-6 font-serif leading-relaxed text-slate-900">This letter serves as official notice regarding your security deposit in the amount of <strong>${parseFloat(depositAmount || 0).toFixed(2)}</strong>. Following your move-out inspection, we have identified damages that exceed standard wear and tear. As per state law, the following deductions have been made:</p>
                 
-                <table className="w-full mb-8 font-serif border-collapse">
+                <table className="w-full mb-8 font-serif border-collapse text-slate-900">
                   <tbody>
                     {deductions.map((item, idx) => (
                       <tr key={idx} className="border-b border-slate-200">
@@ -159,7 +225,7 @@ export default function DepositShield() {
                     </tr>
                   </tbody>
                 </table>
-                <p className="font-serif leading-relaxed">A check for the remaining balance has been issued. If you have any questions regarding these deductions, please reply in writing within 15 days.</p>
+                <p className="font-serif leading-relaxed text-slate-900">A check for the remaining balance has been issued. If you have any questions regarding these deductions, please reply in writing within 15 days.</p>
               </div>
 
               {/* THE PAYWALL OVERLAY */}
