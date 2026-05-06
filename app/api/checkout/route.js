@@ -1,11 +1,11 @@
-import { Client, Environment } from "square";
+import { Client } from "square";
 import { NextResponse } from "next/server";
 
 export async function POST(req) {
   try {
-    // Connect to Square Sandbox
+    // FIX: We removed the broken "Environment" import and just hardcoded "sandbox"
     const client = new Client({
-      environment: Environment.Sandbox, 
+      environment: "sandbox", 
       accessToken: process.env.SQUARE_ACCESS_TOKEN,
     });
 
@@ -15,7 +15,7 @@ export async function POST(req) {
       quickPay: {
         name: "Unlock Legal Deduction PDF",
         priceMoney: {
-          amount: BigInt(900), // FIX: Square strictly requires BigInt for money!
+          amount: BigInt(900), // $9.00 in cents
           currency: "USD" 
         },
         locationId: process.env.SQUARE_LOCATION_ID
