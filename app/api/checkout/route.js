@@ -15,8 +15,8 @@ export async function POST(req) {
       quickPay: {
         name: "Unlock Legal Deduction PDF",
         priceMoney: {
-          amount: 900, // Amount in CENTS ($9.00 = 900)
-          currency: "USD" // Change to AUD, GBP, CAD, etc. if needed!
+          amount: BigInt(900), // FIX: Square strictly requires BigInt for money!
+          currency: "USD" 
         },
         locationId: process.env.SQUARE_LOCATION_ID
       }
